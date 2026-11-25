@@ -1,0 +1,134 @@
+# DraftMind API smoke tests — JetBrains HTTP Client
+# Run in PyCharm/IntelliJ (pick env "local" or "prod"), or from the CLI:
+#   docker run --rm -v "$PWD/http":/workdir jetbrains/intellij-http-client --no-progress -v http-client.env.json -e prod -t 60000 api.http
+
+### Health
+GET {{baseUrl}}/api/health
+
+> {%
+    client.test("health is ok", () => {
+        client.assert(response.status === 200, "status " + response.status);
+        client.assert(response.body.status === "ok", "status field");
+        client.assert(response.body.dataset.teams > 0, "dataset has teams");
+    });
+%}
+
+### Teams
+GET {{baseUrl}}/api/teams
+
+> {%
+    client.test("teams list includes both teams", () => {
+        client.assert(response.status === 200);
+        const ids = response.body.map(t => t.id);
+        client.assert(ids.includes(request.environment.get("ourTeam")), "our team present");
+        client.assert(ids.includes(request.environment.get("opponent")), "opponent present");
+    });
+%}
+
+### Dashboard
+GET {{baseUrl}}/api/dashboard?our={{ourTeam}}&opp={{opponent}}
+
+> {%
+    client.test("dashboard has insights and ban plan", () => {
+        client.assert(response.status === 200);
+        client.assert(Array.isArray(response.body.insights) && response.body.insights.length > 0, "insights");
+        client.assert(Array.isArray(response.body.ban_plan), "ban_plan");
+    });
+%}
+
+### Scouting report
+GET {{baseUrl}}/api/teams/{{opponent}}/scouting?vs={{ourTeam}}
+
+> {%
+    client.test("scouting report returns", () => {
+        client.assert(response.status === 200);
+        client.assert(Array.isArray(response.body.insights), "insights");
+    });
+%}
+
+### Unknown team -> 404
+GET {{baseUrl}}/api/teams/NOPE
+
+> {%
+    client.test("unknown team is 404", () => {
+        client.assert(response.status === 404, "status " + response.status);
+    });
+%}
+
+### Create a best-of-3 fearless series
+POST {{baseUrl}}/api/series
+Content-Type: application/json
+
+{"our_team": "{{ourTeam}}", "opponent": "{{opponent}}", "best_of": 3, "fearless_mode": "hard", "title": "http-client smoke test"}
+
+> {%
+    client.test("series created", () => {
+        client.assert(response.status === 200);
+        client.assert(response.body.best_of === 3);
+    });
+    client.global.set("seriesId", response.body.id);
+%}
+
+### Start game 1 on blue side
+POST {{baseUrl}}/api/series/{{seriesId}}/games
+Content-Type: application/json
+
+{"our_side": "blue"}
+
+> {%
+    client.test("game created", () => {
+        client.assert(response.status === 200);
+        client.assert(response.body.game_number === 1);
+    });
+    client.global.set("gameId", response.body.id);
+%}
+
+### Draft analysis: recommendations at the first step
+GET {{baseUrl}}/api/drafts/{{gameId}}
+
+> {%
+    client.test("recommendations are ranked", () => {
+        client.assert(response.status === 200);
+        const recs = response.body.recommendations.recommendations;
+        client.assert(recs.length > 0, "has recommendations");
+        for (let i = 1; i < recs.length; i++) {
+            client.assert(recs[i - 1].total >= recs[i].total, "sorted by total at " + i);
+        }
+    });
+    client.global.set("topPick", response.body.recommendations.recommendations[0].champion);
+%}
+
+### Apply the top recommendation as the first action
+POST {{baseUrl}}/api/drafts/{{gameId}}/actions
+Content-Type: application/json
+
+{"champion": "{{topPick}}"}
+
+> {%
+    client.test("action recorded and champion leaves the pool", () => {
+        client.assert(response.status === 200);
+        const recs = response.body.recommendations.recommendations.map(r => r.champion);
+        client.assert(!recs.includes(client.global.get("topPick")), "used champion not recommended again");
+    });
+%}
+
+### Undo restores the champion
+POST {{baseUrl}}/api/drafts/{{gameId}}/undo
+
+> {%
+    client.test("undo works", () => {
+        client.assert(response.status === 200);
+        const recs = response.body.recommendations.recommendations.map(r => r.champion);
+        client.assert(recs.includes(client.global.get("topPick")), "champion available again");
+    });
+%}
+
+### Clean up: delete the test series
+DELETE {{baseUrl}}/api/series/{{seriesId}}
+
+> {%
+    client.test("series deleted", () => {
+        client.assert(response.status === 200);
+        client.assert(response.body.ok === true);
+    });
+%}
