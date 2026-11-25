@@ -1,0 +1,245 @@
+# DraftMind AI
+
+**An explainable AI draft room for League of Legends coaches.** DraftMind scouts the opponent, predicts their next pick or ban with calibrated probabilities, and recommends your next move. Every score breaks down into the stats behind it. The coach stays in control: each suggestion can be accepted, modified or rejected, and DraftMind learns from those calls.
+
+Built for the **Cloud9 × JetBrains "Sky's The Limit" Hackathon, Category 2: LoL Macro Scouting & Draft Management.**
+
+![Live Draft Board](docs/screenshots/draft-board.jpg)
+
+| Dashboard | Scouting Report |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Scouting](docs/screenshots/scouting.png) |
+| **Series History** | **AI Model** |
+| ![Series](docs/screenshots/series-history.png) | ![Model](docs/screenshots/model.png) |
+
+---
+
+## Why
+
+Coaches still scout in spreadsheets: they count champion pools by hand, guess what the opponent will first-pick, and keep fearless-draft lockouts in their heads during a Bo5. DraftMind replaces that workflow with one tool:
+
+| Capability | Where |
+|---|---|
+| **Opponent analysis**: per-player champion pools (heatmap), pick/ban tables, first-pick priorities, blue/red win rates, first blood/dragon/herald/tower, gold@15, auto-generated insights and a ban plan | Scouting Report, Dashboard |
+| **Draft prediction**: the opponent's likely next pick or ban, top 5 with probabilities | Live Draft Board |
+| **Recommendations**: our best next pick or ban, scored on meta strength, counter value, synergy, player comfort, denial and coach history | Live Draft Board |
+| **Human in the loop**: Accept / Modify / Reject on every suggestion; each call is logged and shifts later suggestions | Live Draft Board, Series History |
+| **Explainable AI**: a "Why?" breakdown on every suggestion (factor × weight = contribution, with the evidence), plus an optional plain-English explanation | Live Draft Board |
+| **Fearless draft**: hard or soft fearless series tracking; used champions are locked out automatically in later games | Draft setup, Live Draft Board |
+| **Tunable model**: coaches set the factor weights in a settings drawer | Live Draft Board → ⚖ Weights |
+| **Export**: scouting report as Markdown, or as PDF through a print layout | Scouting Report |
+
+## Quick start
+
+The app runs fully offline on the bundled sample dataset. It needs no API keys.
+
+### Option A: Docker (one command)
+
+```bash
+docker compose up --build
+# → http://localhost:8080   (API + Swagger docs at http://localhost:8000/docs)
+```
+
+### Option B: no Docker (one command)
+
+Requires Python ≥ 3.9 and Node ≥ 20.
+
+```bash
+./scripts/dev.sh          # or: make dev
+# → http://127.0.0.1:5173  (API at http://127.0.0.1:8000/docs)
+```
+
+On the first run the script creates `backend/.venv` and runs `npm ci`. It then starts the FastAPI backend and the Vite dev server together.
+
+<details><summary>Manual steps</summary>
+
+```bash
+# backend
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/uvicorn app.main:app --reload --port 8000
+# frontend (new terminal)
+cd frontend && npm ci && npm run dev
+```
+</details>
+
+### Optional configuration
+
+Copy `.env.example` to `.env`:
+
+| Variable | Effect |
+|---|---|
+| `GRID_API_KEY` | Switches the data source to live GRID esports data. If GRID fails, the app falls back to the sample data and says so on `/api/health`. |
+| `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`) | The "Explain in plain English" button then uses an LLM (Claude `claude-opus-5-5` by default) to rephrase the factor breakdown. Without a key it uses templated explanations. |
+| `DATA_SOURCE` | `auto` (default), `sample` or `grid` |
+| `CORS_ORIGINS`, `DB_PATH`, `RECENCY_HALF_LIFE_DAYS`, `VITE_API_URL` | See `.env.example` |
+
+## 3-minute demo script
+
+1. **Dashboard**: pick *Nimbus Esports* vs *Iron Wolves*. The page shows head-to-head, side and early-game comparisons, what to expect from the opponent, and suggested bans.
+2. **Scouting Report → Iron Wolves**: the champion-pool heatmap shows Grim (bot) on Xayah at 89% WR. The opponent takes first dragon in 78% of games and averages +990 gold@15. Click **Markdown** or **PDF** to export.
+3. **Live Draft Board → Start draft** (Bo3, hard fearless, blue side):
+   - B1 ban: the top suggestion is *Ban Xayah* (score 65). Click **Why?** to see each factor's contribution, then **Explain in plain English**.
+   - Enter the opponent's bans by clicking the champion in the grid, or **Lock in** a predicted one.
+   - On one suggestion click **Reject**: it disappears and is logged. On another click **Modify**, then pick your own champion in the grid.
+   - Open **⚖ Weights**, raise *Player comfort*, and save. The suggestions re-score immediately.
+4. Finish the draft, then click **We won** and **Start game 2**. Every champion from game 1 now shows 🔒, and the AI never suggests it.
+5. **Series History**: the full draft of each game, every coach decision next to the AI's top 3 at that moment, and the AI acceptance rate.
+6. **AI Model**: held-out backtest results against a baseline, and calibration.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Sources
+    GRID[GRID Central Data +<br/>Series State GraphQL]
+    SAMPLE[(Sample dataset<br/>data/seed/dataset.json)]
+    DD[Riot Data Dragon<br/>names + icons]
+  end
+  subgraph Backend["Backend · FastAPI (Python)"]
+    AD{{DataAdapter<br/>GridAdapter / SampleAdapter}}
+    ING[Ingest → normalized SQLite]
+    DB[(SQLite<br/>matches · drafts · participants<br/>series · sessions · decisions · weights)]
+    STATS[StatsIndex<br/>recency-weighted aggregates]
+    ENG[Draft engine<br/>state machine · role solver · fearless]
+    SCORE[Scoring<br/>predict_opponent · recommend]
+    EXP[Explanations<br/>template · optional LLM]
+    API[REST API /api/*]
+  end
+  subgraph Frontend["Frontend · React + TS + Vite + Tailwind"]
+    UI[Dashboard · Scouting · Draft Board<br/>Series History · AI Model]
+  end
+  GRID --> AD
+  SAMPLE --> AD
+  AD --> ING --> DB --> STATS --> SCORE
+  ENG --> SCORE --> EXP --> API
+  DB <--> API
+  API <--> UI
+  DD -.icons.-> UI
+  LLM[(Claude / OpenAI<br/>optional)] -.-> EXP
+```
+
+```
+/backend   FastAPI app (app/), engine (app/engine/), adapters (app/adapters/), tests/
+/frontend  React + TypeScript + Vite + Tailwind v4 SPA
+/data      champions.json (Data Dragon snapshot + role map), seed/dataset.json, scripts/ (generators)
+/docs      screenshots
+/.run      shared JetBrains run configurations
+```
+
+## Methodology
+
+All analytics are computed from the normalized match tables. The engine does not know whether the data came from GRID or from the sample set.
+
+### Statistics
+- **Recency weighting**: each game counts `0.5^(age / 45 days)`, measured from the newest game in the dataset. Comfort and meta therefore track current form.
+- **Bayesian smoothing**: win rates shrink toward 50% (`(wins + 0.5k)/(games + k)`), so a 1/1 record is never scored as a 100% win rate (the tables still show raw records).
+- **Role solver**: Riot data has no positions. DraftMind combines a curated pro role map with an exact assignment solver over flex picks: Corki moves mid ↔ bot, and Gragas can go top, jungle or support. "Is the role still open?" is a hard feasibility check.
+- **Matchups and synergy** blend pro lane results with solo-queue-style priors (pseudo-count 20). Synergy is measured as the pair's lift over the two champions' individual win rates.
+
+### Opponent prediction
+For every champion the opponent could legally take at this step:
+
+`score = 1.6·comfort(player in the open role) + 2.0·team phase pattern + 2.4·meta + 0.5·counter-to-our-picks`
+
+For bans the terms are *targets our players' comfort*, *team ban pattern in this phase*, *meta*, and *protects their picks*. Probabilities are `softmax(score / T)`.
+
+### Our recommendation
+`total = Σ wᵢ · fᵢ` over the factors below. The defaults are shown; coaches can tune them in the app.
+
+| Pick factor | w | Ban factor | w |
+|---|---|---|---|
+| Meta strength | 1.0 | Opponent comfort (threat) | 1.4 |
+| Counter value vs revealed enemies (lane ×1.0, others ×0.3) | 1.2 | Likely enemy pick (prediction model) | 1.2 |
+| Synergy with our picks | 0.6 | Meta strength | 0.9 |
+| Our player's comfort | 1.3 | Counters our locked picks | 0.8 |
+| Denies the opponent's comfort | 0.7 | Keeps our own comfort open (penalty) | 0.8 |
+| Coach history | 0.5 | Coach history | 0.5 |
+
+The total shown in the UI is exactly the sum of the factor contributions, and a unit test asserts this.
+
+### Human in the loop
+Each decision is logged with the AI's top 5 at that moment. Accept counts +1, Reject −1, Modify +1 for the coach's champion and −0.4 for the suggestion. The coach-history factor is `tanh(Σ/2)` per champion and action type. A rejected champion is also hidden for the rest of that draft step.
+
+### Validation
+`/api/model/backtest` builds the stats from the earliest 75% of games, then replays all 740 draft actions in the newest 25%, with fearless locks applied:
+
+| | Top-1 | Top-5 | Meta-only baseline (top-1 / top-5) | Avg top-1 confidence |
+|---|---|---|---|---|
+| Opponent picks | **17%** | **52%** | 9% / 32% | 19% |
+| Opponent bans | **11%** | **39%** | 10% / 25% | 11% |
+
+The factor weights were grid-searched on this split. The softmax temperatures (picks 0.9, bans 0.7) were set by minimizing held-out log-loss, so a "20%" on the board means roughly 20%. The tuning shows a flat optimum (±1 point), so the model is not over-fit to a single weight setting.
+
+### Explanations
+The templated text is generated from the top factors and their evidence strings, for example *"Denies Howl (jungle): 9/36 games, 78% WR"*. When an LLM key is set, the model receives only those facts and is told not to add any. Any API failure, refusal or timeout falls back to the template.
+
+## Data
+
+- **Sample dataset** (`data/seed/dataset.json`): 8 fictional teams, 56 fearless Bo3 series and **148 games**. Every game has a full 20-action draft, role assignments, first blood/dragon/herald/tower, gold@15 and duration. A deterministic simulator (`data/scripts/generate_seed.py`) produces it from hidden ground truth: player champion pools, team first-pick tendencies, ban styles, patch meta drift, lane matchups and synergies. That gives the analytics real patterns to find. **All teams, players and numbers are synthetic.**
+- **GridAdapter** (`backend/app/adapters/grid.py`): reads `GRID_API_KEY` and pages recent LoL esports series from the Central Data API. It then pulls each series' games, players, champions and draft actions from the Series State API. Roles are inferred with the same role solver. Objective timings and gold@15 are not part of Series State, so the UI shows *n/a* for those.
+- **Riot Data Dragon**: `data/champions.json` is a snapshot of champion ids, names and tags (`make champions` refreshes it). Icons load from the public Data Dragon CDN, with an initials fallback when offline. No other Riot assets are used.
+
+## API
+
+Interactive docs are at `/docs` (Swagger). The main endpoints:
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/health` | Data source, dataset size, LLM provider |
+| `GET /api/teams`, `/api/teams/{id}`, `/api/matches?team=&opponent=` | Reference data |
+| `GET /api/dashboard?our=&opp=` | Matchup summary |
+| `GET /api/teams/{id}/scouting?vs=` · `/scouting.md` | Scouting report as JSON or Markdown |
+| `POST /api/series` · `POST /api/series/{id}/games` · `GET /api/series/{id}` | Series, games and fearless pool |
+| `GET /api/drafts/{id}` | Draft state, prediction and recommendations |
+| `POST /api/drafts/{id}/actions` · `/undo` · `/decisions` · `/result` · `/explain` | Draft workflow |
+| `GET/PUT /api/settings/weights` · `POST /api/settings/weights/reset` | Recommendation weights |
+| `GET /api/model/backtest` | Held-out accuracy and calibration |
+
+## Tests
+
+```bash
+make test        # pytest (30 tests) + TypeScript type-check and production build
+```
+
+- `tests/test_draft.py` covers the draft-order state machine (exact pro order, apply/undo/completion, duplicate and unknown champions), the flex role solver, and hard/soft/off fearless locks.
+- `tests/test_scoring.py` covers softmax, smoothing, comfort, prediction ordering and availability, the counter factor, weights changing the ranking, ban targeting, rejection exclusion, coach-affinity math, and that each total equals the sum of its factor contributions.
+- `tests/test_api.py` runs a full Bo3 series through the API (reject, modify, accept, undo, result, fearless lock in game 2, explain), plus scouting/Markdown, weights round-trip, the backtest beating its baseline, and validation errors.
+
+## Deployment
+
+**Backend → Render** (free web service): push the repo and create a *Blueprint* from `render.yaml`. It builds `backend/Dockerfile` and health-checks `/api/health`. Add `GRID_API_KEY` / `ANTHROPIC_API_KEY` as secrets if you have them. The free plan's disk is ephemeral, so coach decisions reset on redeploy; attach a disk and set `DB_PATH` to keep them.
+
+**Backend → Fly.io** (alternative, with a persistent volume):
+```bash
+fly launch --no-deploy --copy-config      # uses fly.toml (backend/Dockerfile)
+fly volumes create draftmind_data -s 1
+fly secrets set GRID_API_KEY=... ANTHROPIC_API_KEY=...   # optional
+fly deploy
+```
+
+**Frontend → Vercel**: import the repo with *Root Directory* = `frontend`. Vite is auto-detected, and `vercel.json` adds the SPA rewrite. Set the env var `VITE_API_URL=https://<your-backend-host>`, then deploy.
+**Frontend → Netlify**: base directory `frontend`. `netlify.toml` configures the build and SPA redirect. Set `VITE_API_URL` the same way.
+
+Optionally set `CORS_ORIGINS=https://<your-frontend-host>` on the backend to restrict CORS.
+
+## How JetBrains tools were used
+
+> **Team: please complete this section before submitting.** Describe only what you actually did. The hackathon judges this section, so be specific and accurate.
+
+What the repository already includes for JetBrains IDEs:
+- **Shared run configurations** in `/.run`: *Backend API (uvicorn)*, *Backend tests (pytest)* and *Frontend (vite dev)*. They appear automatically when the repo is opened in PyCharm Professional, IntelliJ IDEA Ultimate or WebStorm.
+- The monorepo layout (Python backend + TypeScript frontend) is designed to open as a single project in PyCharm Professional or IntelliJ IDEA Ultimate, with each language's tooling (pytest runner, TypeScript service) working in its own folder.
+
+Suggested points to cover, if they apply to your team:
+- Which IDEs you used (e.g. PyCharm for the scoring engine and tests, WebStorm for the React UI) and for which tasks.
+- Whether you used **JetBrains AI Assistant / Junie**, and for what (e.g. generating test cases, refactoring, writing docs).
+- Debugger, HTTP Client (`.http` files against `/api/*`), database tools on `backend/draftmind.db`, profiling of the scoring hot path, and so on.
+
+## Limitations and next steps
+- The bundled data is **synthetic**. Real-world accuracy depends on GRID data volume. The GRID adapter follows GRID's documented GraphQL schema, but it was not run against a live key during development.
+- SQLite with a single process is fine for a coaching staff, but would need Postgres for multi-tenant use.
+- Next steps: patch-aware meta from Data Dragon item/patch notes, side-selection advice for fearless series, and draft-phase win-probability curves.
+
+## License
+
+[MIT](LICENSE). Champion names and icons are © Riot Games, used through the public Data Dragon CDN under Riot's Legal Jibber Jabber policy. DraftMind AI is not endorsed by Riot Games, Cloud9, GRID or JetBrains.

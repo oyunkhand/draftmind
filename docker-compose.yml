@@ -1,0 +1,25 @@
+# docker compose up --build  →  http://localhost:8080   (API on :8000)
+# Optional keys are read from .env in this folder (see .env.example).
+services:
+  backend:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    environment:
+      DB_PATH: /app/var/draftmind.db
+      DATA_SOURCE: ${DATA_SOURCE:-auto}
+      GRID_API_KEY: ${GRID_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5-5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+    volumes:
+      - draftmind-db:/app/var
+    ports: ["8000:8000"]
+
+  frontend:
+    build: { context: frontend }
+    depends_on:
+      backend: { condition: service_healthy }
+    ports: ["8080:80"]
+
+volumes:
+  draftmind-db:

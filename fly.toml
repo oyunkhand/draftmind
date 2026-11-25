@@ -1,0 +1,28 @@
+# Fly.io — backend API.  fly launch --no-deploy --copy-config && fly volumes create draftmind_data -s 1 && fly deploy
+app = "draftmind-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  DATA_SOURCE = "auto"
+  DB_PATH = "/data/draftmind.db"
+  CORS_ORIGINS = "*"
+
+[mounts]
+  source = "draftmind_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "15s"
+    timeout = "3s"
