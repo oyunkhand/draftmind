@@ -26,6 +26,12 @@ def test_scouting_report_and_markdown(client):
     assert client.get("/api/teams/NOPE/scouting").status_code == 404
 
 
+def test_dashboard_ban_plan(client):
+    dashboard = client.get("/api/dashboard?our=NMB&opp=IWF").json()
+    assert len(dashboard["ban_plan"]) <= 5
+    assert all(entry["champion"] for entry in dashboard["ban_plan"])
+
+
 def test_full_series_with_decisions_and_fearless(client):
     s = client.post("/api/series", json={"our_team": "NMB", "opponent": "IWF", "best_of": 3, "fearless_mode": "hard"}).json()
     g = client.post(f"/api/series/{s['id']}/games", json={"our_side": "blue"}).json()
