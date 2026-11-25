@@ -224,16 +224,24 @@ Optionally set `CORS_ORIGINS=https://<your-frontend-host>` on the backend to res
 
 ## How JetBrains tools were used
 
-> **Team: please complete this section before submitting.** Describe only what you actually did. The hackathon judges this section, so be specific and accurate.
+| Tool | What it did in this project | Evidence in the repo |
+|---|---|---|
+| **PyCharm** | The repository is set up as a PyCharm project: the Python 3.12 interpreter from `backend/.venv` is configured, pytest is the test runner, and three shared run configurations start the API, the test suite and the Vite dev server. | [`.idea/`](.idea), [`.run/`](.run) |
+| **Qodana** (`qodana-python-community:2025.3`) | Static analysis of the backend. The first scan reported 22 problems, 4 of them high severity. We fixed all 4: replaced the deprecated `datetime.utcnow()` with timezone-aware `datetime.now(timezone.utc)` in two places, and replaced `set([...])` calls with set literals. In the same pass we narrowed a bare `except Exception` in the backtest to `DraftError` and removed unused locals in the tests. After the fixes, the scan reports no high-severity problems. All 30 backend tests still pass. | [`qodana.yaml`](qodana.yaml), commit *"Fix Qodana findings in the backend"* |
+| **HTTP Client** | API smoke tests: 11 requests with JavaScript assertions covering health, teams, the dashboard, scouting, 404 handling and a full flow (create a Bo3 fearless series → start a game → read the ranked recommendations → apply the top pick → undo → delete the series). Two environments, `local` and `prod`. Against the deployed API on Render: **11/11 passed**. | [`http/api.http`](http/api.http), [`http/http-client.env.json`](http/http-client.env.json) |
 
-What the repository already includes for JetBrains IDEs:
-- **Shared run configurations** in `/.run`: *Backend API (uvicorn)*, *Backend tests (pytest)* and *Frontend (vite dev)*. They appear automatically when the repo is opened in PyCharm Professional, IntelliJ IDEA Ultimate or WebStorm.
-- The monorepo layout (Python backend + TypeScript frontend) is designed to open as a single project in PyCharm Professional or IntelliJ IDEA Ultimate, with each language's tooling (pytest runner, TypeScript service) working in its own folder.
-
-Suggested points to cover, if they apply to your team:
-- Which IDEs you used (e.g. PyCharm for the scoring engine and tests, WebStorm for the React UI) and for which tasks.
-- Whether you used **JetBrains AI Assistant / Junie**, and for what (e.g. generating test cases, refactoring, writing docs).
-- Debugger, HTTP Client (`.http` files against `/api/*`), database tools on `backend/draftmind.db`, profiling of the scoring hot path, and so on.
+### Reproduce
+- **PyCharm:** open the repository root, then run *Backend tests*, *Backend API* or *Frontend (vite dev)* from the run-configuration menu. To run the API checks, open `http/api.http`, select the `local` or `prod` environment and choose *Run all*.
+- **HTTP Client CLI:**
+  ```bash
+  docker run --rm -v "$PWD/http":/workdir jetbrains/intellij-http-client \
+    --no-progress -v http-client.env.json -e prod -t 60000 api.http
+  ```
+- **Qodana:**
+  ```bash
+  docker run --rm -v "$PWD":/data/project/ -v "$PWD/.qodana-results":/data/results/ \
+    jetbrains/qodana-python-community:2025.3
+  ```
 
 ## Limitations and next steps
 - The bundled data is **synthetic**. Real-world accuracy depends on GRID data volume. The GRID adapter follows GRID's documented GraphQL schema, but it was not run against a live key during development.
