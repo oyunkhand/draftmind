@@ -73,11 +73,11 @@ def test_weights_change_ranking(mini_index):
     comfort_only = {"pick": {k: 0.0 for k in scoring.PICK_FACTORS}}
     comfort_only["pick"]["comfort"] = 1.0
     rec = scoring.recommend(mini_index, st, "blue", weights=comfort_only)
-    assert rec["recommendations"][0]["champion"] in set(["Gnar", "Vi", "Azir", "Varus", "Rakan"])
+    assert rec["recommendations"][0]["champion"] in {"Gnar", "Vi", "Azir", "Varus", "Rakan"}
     deny_only = {"pick": {k: 0.0 for k in scoring.PICK_FACTORS}}
     deny_only["pick"]["deny"] = 1.0
     rec2 = scoring.recommend(mini_index, st, "blue", weights=deny_only)
-    assert rec2["recommendations"][0]["champion"] in set(["Renekton", "Sejuani", "Orianna", "Kaisa", "Nautilus"])
+    assert rec2["recommendations"][0]["champion"] in {"Renekton", "Sejuani", "Orianna", "Kaisa", "Nautilus"}
 
 
 def test_ban_recommendation_targets_opponent_comfort(mini_index):

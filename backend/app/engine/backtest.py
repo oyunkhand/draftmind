@@ -8,7 +8,7 @@ import math
 from typing import Dict, List
 
 from ..champions import all_champions
-from .draft import DRAFT_ORDER, DraftState, SeriesGame, fearless_locks, fits_open_role
+from .draft import DRAFT_ORDER, DraftError, DraftState, SeriesGame, fearless_locks, fits_open_role
 from .scoring import predict_opponent
 from .stats import StatsIndex
 
@@ -63,7 +63,7 @@ def run_backtest(matches: List[dict], teams: List[dict], priors: dict, test_frac
             r["base_top5"] += int(b <= 5)
             try:
                 state.apply(a["champion"])
-            except Exception:
+            except DraftError:
                 break
     out = {"train_games": len(train), "test_games": len(test)}
     for k, r in res.items():

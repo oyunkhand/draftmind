@@ -24,8 +24,6 @@ ORDER = (["blue", "red"] * 3, ["blue", "red", "red", "blue", "blue", "red"], ["r
 def make_match(mid, date, blue_comp, red_comp, winner="AAA", blue="AAA", red="BBB", bans=None):
     """Build a normalized match. *_comp are role->champion dicts; bans is a list of 10 champions."""
     bans = bans or ["Teemo", "Shaco", "Singed", "Heimerdinger", "Rammus", "Nunu", "Zilean", "Sona", "Yuumi", "Soraka"]
-    sides_ban = ORDER[0] + ORDER[2]
-    sides_pick = ORDER[1] + ORDER[3]
     picks = {"blue": list(blue_comp.values()), "red": list(red_comp.values())}
     seq_types = ["ban"] * 6 + ["pick"] * 6 + ["ban"] * 4 + ["pick"] * 4
     side_seq = ORDER[0] + ORDER[1] + ORDER[2] + ORDER[3]

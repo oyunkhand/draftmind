@@ -18,7 +18,7 @@ class NotFound(KeyError):
 
 
 def _now() -> str:
-    return dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0, tzinfo=None).isoformat() + "Z"
 
 
 def _id(prefix: str) -> str:

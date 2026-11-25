@@ -45,7 +45,7 @@ class StatsIndex:
         self.matches = sorted(matches, key=lambda m: m["date"])
         self.teams = {t["id"]: t for t in teams}
         self.half_life = half_life_days or config.RECENCY_HALF_LIFE_DAYS
-        self.ref_date = _parse(self.matches[-1]["date"]) if self.matches else dt.datetime.utcnow()
+        self.ref_date = _parse(self.matches[-1]["date"]) if self.matches else dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
         self.roster: Dict[str, Dict[str, dict]] = {}
         self.player_name: Dict[str, str] = {}
         for t in teams:

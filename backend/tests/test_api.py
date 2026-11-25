@@ -49,7 +49,7 @@ def test_full_series_with_decisions_and_fearless(client):
     assert r.status_code == 400
 
     # Undo / redo via actions
-    a = client.post(f"/api/drafts/{gid}/actions", json={"champion": "Azir"}).json()
+    client.post(f"/api/drafts/{gid}/actions", json={"champion": "Azir"})
     a = client.post(f"/api/drafts/{gid}/undo").json()
     assert a["state"]["index"] == 1
 
