@@ -16,6 +16,7 @@ def fingerprint(data: Dataset) -> str:
     h.update(str(len(data["matches"])).encode())
     for m in data["matches"][:5] + data["matches"][-5:]:
         h.update(json.dumps(m, sort_keys=True).encode())
+    h.update(json.dumps(data.get("teams", []), sort_keys=True).encode())  # names, tags and rosters change too
     return h.hexdigest()[:16]
 
 

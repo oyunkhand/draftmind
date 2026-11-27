@@ -21,7 +21,7 @@ import numpy as np
 from app.adapters import load_dataset
 from app.engine import scoring
 from app.engine.backtest import run_backtest
-from app.engine.draft import DRAFT_ORDER, DraftError, DraftState, SeriesGame, fearless_locks
+from app.engine.draft import DraftError, DraftState, SeriesGame, fearless_locks
 from app.engine.stats import StatsIndex
 
 TRAIN_FRAC, FIT_END = 0.60, 0.75
@@ -39,13 +39,12 @@ def collect(matches, teams):
         draft = sorted(m["draft"], key=lambda x: x["seq"])
         if len(draft) == 20:
             prev = [g for g in matches if g["series_id"] == m["series_id"] and g["game_number"] < m["game_number"]]
-            first, second = (m["red_team"], m["blue_team"]) if draft[0]["side"] == "red" else (m["blue_team"], m["red_team"])
             locks = fearless_locks([SeriesGame(g["blue_team"], g["red_team"],
                                                [x["champion"] for x in g["draft"] if x["type"] == "pick" and x["side"] == "blue"],
                                                [x["champion"] for x in g["draft"] if x["type"] == "pick" and x["side"] == "red"])
-                                    for g in prev], first, second, "hard")
-            state = DraftState(first, second, fearless_mode="hard", locked=locks)
-            for step, act in zip(DRAFT_ORDER, draft):
+                                    for g in prev], m["blue_team"], m["red_team"], "hard")
+            state = DraftState(m["blue_team"], m["red_team"], fearless_mode="hard", locked=locks, first_side=draft[0]["side"])
+            for step, act in zip(state.order, draft):
                 preds = scoring.predict_opponent(idx, state, step.side, step=step, top=1000)["predictions"]
                 names = [p["champion"] for p in preds]
                 if act["champion"] in names:

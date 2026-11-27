@@ -17,8 +17,9 @@ from .champions import all_champions, ddragon_version, name_of
 from .engine import stats as stats_mod
 from .engine.backtest import run_backtest
 from .engine.scoring import MODEL_INFO, PREDICT_BAN, PREDICT_PICK
-from .engine.draft import DRAFT_ORDER, DraftError
+from .engine.draft import DraftError, draft_order
 from .engine.explain import explain
+from .engine.selection import first_selection_advice
 from .engine.scoring import DEFAULT_WEIGHTS, FACTOR_LABELS
 from .ingest import ingest
 
@@ -98,8 +99,9 @@ def champions():
 
 
 @app.get("/api/draft-order")
-def draft_order():
-    return [{"index": s.index, "side": s.side, "type": s.type, "phase": s.phase, "label": s.label} for s in DRAFT_ORDER]
+def get_draft_order(first_side: str = "blue"):
+    return [{"index": s.index, "side": s.side, "type": s.type, "phase": s.phase, "label": s.label}
+            for s in draft_order(first_side)]
 
 
 @app.post("/api/admin/reload")
@@ -153,6 +155,12 @@ def dashboard(our: str, opp: str):
             "insights": rep["insights"], "ban_plan": rep.get("ban_plan", [])}
 
 
+@app.get("/api/first-selection")
+def first_selection(our: str, opp: str):
+    """First Selection advice: take a side or a draft turn? (minimax over the opponent's reply)"""
+    return first_selection_advice(idx().matches, our, opp)
+
+
 # ---------------------------------------------------------------------------- scouting
 @app.get("/api/teams/{team_id}/scouting")
 def scouting_report(team_id: str, vs: Optional[str] = None):
@@ -203,6 +211,7 @@ class SeriesIn(BaseModel):
 
 class GameIn(BaseModel):
     our_side: str = "blue"
+    first_side: str = "blue"  # First Selection: which side drafts first
 
 
 class QuickDraftIn(BaseModel):
@@ -210,6 +219,7 @@ class QuickDraftIn(BaseModel):
     opponent: str
     our_side: str = "blue"
     fearless_mode: str = "off"
+    first_side: str = "blue"
 
 
 class ActionIn(BaseModel):
@@ -255,12 +265,12 @@ def delete_series(sid: str):
 
 @app.post("/api/series/{sid}/games")
 def create_game(sid: str, body: GameIn):
-    return services.create_game(sid, body.our_side)
+    return services.create_game(sid, body.our_side, body.first_side)
 
 
 @app.post("/api/drafts")
 def quick_draft(body: QuickDraftIn):
-    return services.quick_draft(body.our_team, body.opponent, body.our_side, body.fearless_mode)
+    return services.quick_draft(body.our_team, body.opponent, body.our_side, body.fearless_mode, body.first_side)
 
 
 @app.get("/api/drafts/{gid}")

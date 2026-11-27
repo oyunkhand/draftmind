@@ -114,7 +114,7 @@ def _previous_games(sid: str, before: int) -> List[SeriesGame]:
     return out
 
 
-def create_game(sid: str, our_side: str = "blue") -> dict:
+def create_game(sid: str, our_side: str = "blue", first_side: str = "blue") -> dict:
     s = db.one("SELECT * FROM coach_series WHERE id=?", (sid,))
     if not s:
         raise NotFound(sid)
@@ -125,7 +125,9 @@ def create_game(sid: str, our_side: str = "blue") -> dict:
         raise DraftError(f"series is best of {s['best_of']}; all games already created")
     blue, red = (s["our_team"], s["opponent"]) if our_side == "blue" else (s["opponent"], s["our_team"])
     locks = fearless_locks(_previous_games(sid, n + 1), blue, red, s["fearless_mode"])
-    state = DraftState(blue, red, fearless_mode=s["fearless_mode"], locked=locks)
+    if first_side not in ("blue", "red"):
+        raise DraftError("first_side must be blue or red")
+    state = DraftState(blue, red, fearless_mode=s["fearless_mode"], locked=locks, first_side=first_side)
     gid = _id("drf")
     with db.tx() as c:
         c.execute("INSERT INTO draft_sessions VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -133,10 +135,11 @@ def create_game(sid: str, our_side: str = "blue") -> dict:
     return {"id": gid, "series_id": sid, "game_number": n + 1}
 
 
-def quick_draft(our_team: str, opponent: str, our_side: str = "blue", fearless_mode: str = "off") -> dict:
+def quick_draft(our_team: str, opponent: str, our_side: str = "blue", fearless_mode: str = "off",
+                first_side: str = "blue") -> dict:
     s = create_series(our_team, opponent, best_of=1 if fearless_mode == "off" else 3, fearless_mode=fearless_mode,
                       title="Quick draft")
-    return create_game(s["id"], our_side)
+    return create_game(s["id"], our_side, first_side)
 
 
 # ---------------------------------------------------------------------------- sessions

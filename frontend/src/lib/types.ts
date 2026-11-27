@@ -128,3 +128,12 @@ export interface Backtest {
   model?: { source: string; fitted_on?: string; fitted_at?: string; pick: Record<string, number>; ban: Record<string, number> }
 }
 export interface Explanation { text: string; source: string; template: string; llm_error?: boolean }
+
+export interface FsRate { games: number; wins: number; wr: number | null }
+export interface FsOutcome { side: Side; turn: 'first' | 'second'; wr: number; parts: { league: number; side: number; turn: number; form: number } }
+export interface FirstSelection {
+  available: boolean; reason?: string; recommendation?: string; summary?: string; method?: string
+  choices?: { choice: string; kind: 'side' | 'turn'; value: string; opponent_reply: string; wr: number; outcome: FsOutcome }[]
+  league?: { events: string[]; games: number; blue_wr: number; first_wr: number; combos: ({ side: Side; turn: string } & FsRate)[] }
+  teams?: Record<string, { overall: FsRate; sides: Record<Side, FsRate>; turns_fs_era: Record<'first' | 'second', FsRate> }>
+}

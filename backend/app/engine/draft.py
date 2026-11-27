@@ -6,6 +6,9 @@ Draft order (tournament draft, 20 actions):
   Ban phase 2 : R4 B4 R5 B5
   Pick phase 2: R4 B4 B5 R5
 
+First Selection (2026): the team with the selection picks a side OR the first draft turn, so the red
+side can draft first. `draft_order("red")` mirrors the order above (R1 ban, R1 pick, ...).
+
 Fearless modes:
   off  - classic draft
   hard - any champion PICKED in an earlier game of the series is unavailable to both teams
@@ -31,13 +34,15 @@ class Step:
     label: str  # e.g. "B1 ban", "R3 pick"
 
 
-def _build_order() -> List[Step]:
+def _build_order(first: str = "blue") -> List[Step]:
     seq = (
         [("blue", "ban"), ("red", "ban")] * 3
         + [("blue", "pick"), ("red", "pick"), ("red", "pick"), ("blue", "pick"), ("blue", "pick"), ("red", "pick")]
         + [("red", "ban"), ("blue", "ban")] * 2
         + [("red", "pick"), ("blue", "pick"), ("blue", "pick"), ("red", "pick")]
     )
+    if first == "red":
+        seq = [(other(side), typ) for side, typ in seq]
     out, counters = [], {(s, t): 0 for s in SIDES for t in ("ban", "pick")}
     for i, (side, typ) in enumerate(seq):
         counters[(side, typ)] += 1
@@ -46,11 +51,19 @@ def _build_order() -> List[Step]:
     return out
 
 
-DRAFT_ORDER: List[Step] = _build_order()
-
-
 def other(side: str) -> str:
     return "red" if side == "blue" else "blue"
+
+
+DRAFT_ORDER: List[Step] = _build_order("blue")
+_ORDERS = {"blue": DRAFT_ORDER, "red": _build_order("red")}
+
+
+def draft_order(first_side: str = "blue") -> List[Step]:
+    """The 20-step order when `first_side` drafts first (blue is the classic order)."""
+    if first_side not in _ORDERS:
+        raise DraftError(f"first_side must be blue or red, not {first_side}")
+    return _ORDERS[first_side]
 
 
 # ---------------------------------------------------------------------------- roles
@@ -119,9 +132,14 @@ class DraftError(ValueError):
 class DraftState:
     blue_team: str
     red_team: str
-    actions: List[str] = field(default_factory=list)  # champion ids, in DRAFT_ORDER order
+    actions: List[str] = field(default_factory=list)  # champion ids, in self.order
     fearless_mode: str = "off"
     locked: Dict[str, List[str]] = field(default_factory=lambda: {"blue": [], "red": []})
+    first_side: str = "blue"  # which side drafts first (First Selection)
+
+    @property
+    def order(self) -> List[Step]:
+        return draft_order(self.first_side)
 
     # -- queries ------------------------------------------------------------
     @property
@@ -130,11 +148,11 @@ class DraftState:
 
     @property
     def complete(self) -> bool:
-        return self.index >= len(DRAFT_ORDER)
+        return self.index >= len(self.order)
 
     @property
     def current(self) -> Optional[Step]:
-        return None if self.complete else DRAFT_ORDER[self.index]
+        return None if self.complete else self.order[self.index]
 
     def team_of(self, side: str) -> str:
         return self.blue_team if side == "blue" else self.red_team
@@ -147,7 +165,7 @@ class DraftState:
         raise DraftError(f"team {team} is not in this draft")
 
     def _of(self, side: str, typ: str) -> List[str]:
-        return [c for step, c in zip(DRAFT_ORDER, self.actions) if step.side == side and step.type == typ]
+        return [c for step, c in zip(self.order, self.actions) if step.side == side and step.type == typ]
 
     def picks(self, side: str) -> List[str]:
         return self._of(side, "pick")
@@ -166,7 +184,7 @@ class DraftState:
         return [r for r in ROLES if r not in filled]
 
     def next_step_for(self, side: str, typ: Optional[str] = None) -> Optional[Step]:
-        for step in DRAFT_ORDER[self.index:]:
+        for step in self.order[self.index:]:
             if step.side == side and (typ is None or step.type == typ):
                 return step
         return None
@@ -202,16 +220,17 @@ class DraftState:
     # -- serialization -------------------------------------------------------------
     def to_dict(self) -> dict:
         return {"blue_team": self.blue_team, "red_team": self.red_team, "actions": list(self.actions),
-                "fearless_mode": self.fearless_mode, "locked": {s: list(v) for s, v in self.locked.items()}}
+                "fearless_mode": self.fearless_mode, "locked": {s: list(v) for s, v in self.locked.items()},
+                "first_side": self.first_side}
 
     @classmethod
     def from_dict(cls, d: dict) -> "DraftState":
         return cls(d["blue_team"], d["red_team"], list(d.get("actions", [])), d.get("fearless_mode", "off"),
-                   {s: list(d.get("locked", {}).get(s, [])) for s in SIDES})
+                   {s: list(d.get("locked", {}).get(s, [])) for s in SIDES}, d.get("first_side", "blue"))
 
     def timeline(self) -> List[dict]:
         out = []
-        for step in DRAFT_ORDER:
+        for step in self.order:
             c = self.actions[step.index] if step.index < len(self.actions) else None
             out.append({"index": step.index, "side": step.side, "type": step.type, "phase": step.phase,
                         "label": step.label, "team": self.team_of(step.side), "champion": c,

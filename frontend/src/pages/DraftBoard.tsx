@@ -100,6 +100,7 @@ export default function DraftBoard() {
   const [modifying, setModifying] = useState<Recommendation | null>(null)
   const [weightsOpen, setWeightsOpen] = useState(false)
   const [nextSide, setNextSide] = useState<Side>('blue')
+  const [nextFirst, setNextFirst] = useState<Side>('blue')
 
   const load = useCallback(() => api.draft(id).then(setA).catch(e => toast(e.message, 'err')), [id, toast])
   useEffect(() => { setA(null); load() }, [load])
@@ -172,7 +173,7 @@ export default function DraftBoard() {
 
   const startNext = async () => {
     try {
-      const g = await api.createGame(a.series_id, nextSide)
+      const g = await api.createGame(a.series_id, nextSide, nextFirst)
       toast(`Game ${g.game_number} created — fearless pool updated`)
       nav(`/draft/${g.id}`)
     } catch (e) { toast((e as Error).message, 'err') }
@@ -216,7 +217,10 @@ export default function DraftBoard() {
                 <button className={`btn ${a.result === 'loss' ? 'bg-rose-500 text-white' : 'btn-ghost'}`} onClick={() => run(() => api.result(id, 'loss'), 'Result saved')}>We lost</button>
                 {a.game_number < a.best_of && (
                   <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Our side</span>
                     <Segmented value={nextSide} onChange={setNextSide} options={[{ value: 'blue', label: 'Blue' }, { value: 'red', label: 'Red' }]} />
+                    <span className="text-xs text-slate-500">Drafts first</span>
+                    <Segmented value={nextFirst} onChange={setNextFirst} options={[{ value: 'blue', label: 'Blue' }, { value: 'red', label: 'Red' }]} />
                     <button className="btn-primary" onClick={startNext}>Start game {a.game_number + 1} →</button>
                   </div>
                 )}

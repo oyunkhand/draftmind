@@ -1,7 +1,6 @@
 import type {
   Backtest, Champion, DashboardData, DraftAnalysis, Explanation, Health, ScoutingReport, SeriesDetail,
-  SeriesSummary, Team, Weights, WeightsResponse,
-} from './types'
+  SeriesSummary, Team, Weights, WeightsResponse, FirstSelection } from './types'
 
 export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
@@ -47,7 +46,8 @@ export const api = {
   deleteSeries: (id: string) => req<{ ok: boolean }>(`/api/series/${id}`, { method: 'DELETE' }),
   createSeries: (b: { our_team: string; opponent: string; best_of: number; fearless_mode: string; title?: string }) =>
     post<SeriesDetail>('/api/series', b),
-  createGame: (sid: string, our_side: string) => post<{ id: string; series_id: string; game_number: number }>(`/api/series/${sid}/games`, { our_side }),
+  createGame: (sid: string, our_side: string, first_side: string = 'blue') => post<{ id: string; series_id: string; game_number: number }>(`/api/series/${sid}/games`, { our_side, first_side }),
+  firstSelection: (our: string, opp: string) => req<FirstSelection>(`/api/first-selection?our=${encodeURIComponent(our)}&opp=${encodeURIComponent(opp)}`),
   draft: (id: string) => req<DraftAnalysis>(`/api/drafts/${id}`),
   action: (id: string, champion: string) => post<DraftAnalysis>(`/api/drafts/${id}/actions`, { champion }),
   undo: (id: string) => post<DraftAnalysis>(`/api/drafts/${id}/undo`),
