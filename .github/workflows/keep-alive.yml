@@ -1,0 +1,25 @@
+# Keeps the free Render instance awake during judging so judges never wait for a cold start.
+# Render's free plan sleeps after 15 idle minutes; this pings the open health endpoint every 10.
+# Active only inside the judging window (Jan 27 - Feb 3, 2027, Pacific), with a day of margin.
+name: Keep demo awake during judging
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/health inside the judging window
+        run: |
+          now=$(date -u +%s)
+          start=$(date -u -d "2027-01-26T00:00:00Z" +%s)
+          end=$(date -u -d "2027-02-05T00:00:00Z" +%s)
+          if [ "$now" -lt "$start" ] || [ "$now" -gt "$end" ]; then
+            echo "Outside the judging window; nothing to do."
+            exit 0
+          fi
+          curl -fsS --retry 3 --retry-delay 20 --max-time 90 https://draftmind-api.onrender.com/api/health -o /dev/null -w "health %{http_code} in %{time_total}s\n"
