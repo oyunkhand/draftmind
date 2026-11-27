@@ -124,6 +124,55 @@ export default function Scouting() {
         )}
       </div>
 
+      {(r.fearless?.available || (r.ban_impact?.items.length ?? 0) > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {r.fearless?.available && r.fearless.buckets && (
+            <Panel title="Fearless series — Game 1 → Game 3+">
+              <ul className="mb-3 space-y-1.5 text-sm text-slate-200">
+                {r.fearless.shifts?.map((t, k) => <li key={k} className="flex gap-2"><span className="text-gold">▸</span>{t}</li>)}
+              </ul>
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="py-1 font-medium">Game</th><th className="font-medium">WR</th><th className="font-medium">Core picks</th><th className="font-medium">1st pick</th><th className="font-medium">Top picks</th>
+                </tr></thead>
+                <tbody>
+                  {r.fearless.buckets.map(b => (
+                    <tr key={b.game} className="border-t border-white/[0.04]">
+                      <td className="py-1.5 font-semibold">{b.game} <span className="text-xs font-normal text-slate-500">({b.games})</span></td>
+                      <td className="tabular-nums">{pct(b.wr)}</td>
+                      <td className="tabular-nums">{b.core_share == null ? '–' : pct(b.core_share)}</td>
+                      <td>{b.first_pick_roles[0] ? <RoleChip role={b.first_pick_roles[0].role} /> : '–'}</td>
+                      <td><div className="flex gap-1">{b.top_picks.slice(0, 4).map(c => <ChampIcon key={c.champion} id={c.champion} size={24} />)}</div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-[11px] text-slate-500">Core picks = share of picks from their {r.fearless.core_pool} most-played champions. Fearless locks used champions, so later games show how deep the pool really is.</p>
+            </Panel>
+          )}
+          {(r.ban_impact?.items.length ?? 0) > 0 && (
+            <Panel title="How to win — bans that hurt them">
+              <ol className="space-y-2.5">
+                {r.ban_impact!.items.map(x => (
+                  <li key={x.champion} className="flex items-start gap-3">
+                    <ChampIcon id={x.champion} size={34} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-semibold text-slate-100">{x.name}</span>
+                        <span className="font-display text-sm font-bold text-rose-300">{Math.round(100 * x.delta)} pts</span>
+                        <span className="text-xs text-slate-500">{pct(x.wr_when_banned)} WR in {x.banned_games} games when banned</span>
+                      </div>
+                      <div className="text-xs text-slate-400">Picked in {pct(x.pick_rate)} of games{x.g1_pick_rate != null ? `, ${pct(x.g1_pick_rate)} of Game 1s` : ''}{x.wr_when_picked != null ? ` · ${pct(x.wr_when_picked)} WR on it` : ''}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 text-[11px] text-slate-500">Overall {pct(r.ban_impact!.overall_wr ?? 0)} WR over {r.ban_impact!.games} games. {r.ban_impact!.method}</p>
+            </Panel>
+          )}
+        </div>
+      )}
+
       <Panel title="Champion pools — heatmap" right={<span className="text-[11px] text-slate-500">cell = comfort (recency-weighted games × win rate)</span>}>
         <div className="scroll-thin overflow-x-auto">
           <table className="w-full border-separate border-spacing-1">

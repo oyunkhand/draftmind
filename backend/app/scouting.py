@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from . import db
 from .champions import ROLES, name_of
+from .engine.fearless import ban_impact, fearless_profile
 from .engine.stats import StatsIndex
 
 
@@ -85,6 +86,8 @@ def build_report(idx: StatsIndex, team_id: str, vs: Optional[str] = None) -> dic
         "phase2_bans": table(dict(phase_n.get("ban2", {})), 8),
         "first_pick_roles": [{"role": r, "count": n, "rate": n / fr_total} for r, n in _top(first_roles, 5)],
         "recent": recent_matches(team_id, 8),
+        "fearless": fearless_profile(idx.matches, team_id),
+        "ban_impact": ban_impact(idx.matches, team_id),
     }
     report["insights"] = insights(idx, report)
     if vs:
@@ -158,6 +161,12 @@ def insights(idx: StatsIndex, r: dict) -> List[dict]:
     narrow = [p for p in r["players"] if p["games"] >= 6 and p["unique_champions"] <= 6]
     for p in narrow[:1]:
         out.append({"type": "pool", "text": f"{p['name']} has a narrow pool ({p['unique_champions']} champions in {p['games']} games) — fearless games 2-3 will stretch them."})
+    fl = r.get("fearless") or {}
+    if fl.get("shifts"):
+        out.append({"type": "fearless", "text": "Fearless: " + fl["shifts"][0] + (" " + fl["shifts"][1] if len(fl["shifts"]) > 1 else "")})
+    bi = (r.get("ban_impact") or {}).get("items") or []
+    if bi:
+        out.append({"type": "win", "text": bi[0]["text"]})
     return out
 
 
@@ -172,6 +181,18 @@ def to_markdown(r: dict) -> str:
         L += ["## Suggested ban plan", "", "| # | Champion | Target | Evidence |", "|---|---|---|---|"]
         L += [f"| {i + 1} | {name_of(b['champion'])} | {b['player']} ({b['role']}) | {b['reason']} |" for i, b in enumerate(r["ban_plan"])]
         L.append("")
+    fl = r.get("fearless") or {}
+    if fl.get("buckets"):
+        L += ["## Fearless series: Game 1 → Game 3+", ""] + [f"- {x}" for x in fl["shifts"]] + [""]
+        L += ["| Game | Games | WR | Core-pool picks | First-pick role | Top picks |", "|---|---|---|---|---|---|"]
+        for b in fl["buckets"]:
+            fr = b["first_pick_roles"][0]["role"] if b["first_pick_roles"] else "–"
+            L.append(f"| {b['game']} | {b['games']} | {_pct(b['wr'])} | {_pct(b['core_share'] or 0)} | {fr} | "
+                     f"{', '.join(x['name'] for x in b['top_picks'][:3])} |")
+        L.append("")
+    bi = (r.get("ban_impact") or {}).get("items") or []
+    if bi:
+        L += ["## How to win: bans that hurt them", ""] + [f"- {x['text']}" for x in bi] + [""]
     L += ["## Early game", "", "| Objective | Rate |", "|---|---|"]
     for k, lab in (("first_blood", "First blood"), ("first_dragon", "First dragon"), ("first_herald", "First herald"),
                    ("first_tower", "First tower")):

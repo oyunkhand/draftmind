@@ -113,6 +113,18 @@ export interface ScoutingReport {
   first_picks: RateRow[]; phase1_bans: RateRow[]; phase2_bans: RateRow[]
   first_pick_roles: { role: Role; count: number; rate: number }[]
   recent: MatchRow[]; insights: Insight[]; ban_plan?: BanPlanItem[]
+  fearless?: FearlessProfile; ban_impact?: BanImpact
+}
+export interface ChampCount { champion: string; name: string; count: number; rate: number }
+export interface FearlessProfile {
+  available: boolean; games?: number; core_pool?: number; shifts?: string[]
+  buckets?: { game: string; games: number; wins: number; wr: number; core_share: number | null
+    first_pick_roles: { role: Role; rate: number; count: number }[]; top_picks: ChampCount[]; top_bans: ChampCount[] }[]
+}
+export interface BanImpact {
+  available: boolean; overall_wr?: number; games?: number; method?: string
+  items: { champion: string; name: string; picked: number; pick_rate: number; g1_pick_rate: number | null
+    wr_when_picked: number | null; banned_games: number; wr_when_banned: number; delta: number; impact: number; text: string }[]
 }
 export interface DashboardData {
   our: TeamSummary; opp: TeamSummary
