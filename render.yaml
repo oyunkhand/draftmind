@@ -18,10 +18,10 @@ services:
         value: judge
       - key: DEMO_PASSWORD
         generateValue: true
-      # 1 = build with the official GRID hackathon data (licensed: judges-only demo, delete after judging).
-      # Kept at 0 until the organizers confirm hosting the data for a password-protected demo is OK.
+      # 1 = build with the official GRID hackathon data (licensed: judges-only demo behind DEMO_PASSWORD;
+      # hosting it this way was confirmed with the organizers). Set back to 0 / delete after judging.
       - key: GRID_DATA
-        value: "0"
+        value: "1"
       - key: GRID_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
