@@ -207,20 +207,22 @@ make test        # pytest (30 tests) + TypeScript type-check and production buil
 
 ## Deployment
 
-**Backend → Render** (free web service): push the repo and create a *Blueprint* from `render.yaml`. It builds `backend/Dockerfile` and health-checks `/api/health`. Add `GRID_API_KEY` / `ANTHROPIC_API_KEY` as secrets if you have them. The free plan's disk is ephemeral, so coach decisions reset on redeploy; attach a disk and set `DB_PATH` to keep them.
+**Render (one service: API + UI).** Create a *Blueprint* from `render.yaml`. It builds `backend/Dockerfile`, which bundles the built frontend so the UI and the API share one origin, and health-checks `/api/health`.
 
-**Backend → Fly.io** (alternative, with a persistent volume):
+- **Password.** The whole site is behind HTTP Basic auth. The user is `DEMO_USER` (`judge`). Render generates `DEMO_PASSWORD`; read it in the dashboard under Environment. Only `/api/health` is open. Leave `DEMO_PASSWORD` empty to run the site without a login.
+- **GRID data.** Set `GRID_DATA=1` to build with the official hackathon data. At build time, the image clones it from Cloud9's repository, builds the normalized cache, and deletes the raw match feeds. The data is never in this repository. Its license allows showing results to judges and organizers only, which is why the site is password-protected. Remove the deployment when judging ends.
+- **Saved data.** The free plan's disk is ephemeral, so coach decisions reset on redeploy. To keep them, attach a disk and set `DB_PATH`.
+
+**Run with the GRID data locally.** Clone the data next to this repository:
+
 ```bash
-fly launch --no-deploy --copy-config      # uses fly.toml (backend/Dockerfile)
-fly volumes create draftmind_data -s 1
-fly secrets set GRID_API_KEY=... ANTHROPIC_API_KEY=...   # optional
-fly deploy
+git clone --filter=blob:none --sparse https://github.com/cloud9esports/stl-hackathon-2026-grid-starter.git ../stl-hackathon-2026-grid-starter
+git -C ../stl-hackathon-2026-grid-starter sparse-checkout set lol meta
 ```
 
-**Frontend → Vercel**: import the repo with *Root Directory* = `frontend`. Vite is auto-detected, and `vercel.json` adds the SPA rewrite. Set the env var `VITE_API_URL=https://<your-backend-host>`, then deploy.
-**Frontend → Netlify**: base directory `frontend`. `netlify.toml` configures the build and SPA redirect. Set `VITE_API_URL` the same way.
+With `DATA_SOURCE=auto` (the default), the backend uses the data when it finds it at `STL_DATA_DIR`. The default location is `../stl-hackathon-2026-grid-starter`. The first start parses the feeds in about 45 s and caches the result in `backend/var/`. Later starts read the cache.
 
-Optionally set `CORS_ORIGINS=https://<your-frontend-host>` on the backend to restrict CORS.
+**Retrain the opponent model** on the GRID data: `cd backend && python -m scripts.fit_opponent_model`. This writes `app/engine/model_weights.json`.
 
 ## How JetBrains tools were used
 

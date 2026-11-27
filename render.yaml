@@ -1,4 +1,6 @@
-# Render Blueprint — backend API (Docker). Frontend goes to Vercel/Netlify (see README).
+# Render Blueprint — DraftMind (API + built UI in one Docker service, one origin).
+# The whole site is behind HTTP Basic auth (DEMO_USER / DEMO_PASSWORD): Render generates the password;
+# read it in the dashboard (Environment tab) and put it in the Devpost testing instructions for judges.
 services:
   - type: web
     name: draftmind-api
@@ -12,6 +14,14 @@ services:
         value: auto
       - key: CORS_ORIGINS
         value: "*"
+      - key: DEMO_USER
+        value: judge
+      - key: DEMO_PASSWORD
+        generateValue: true
+      # 1 = build with the official GRID hackathon data (licensed: judges-only demo, delete after judging).
+      # Kept at 0 until the organizers confirm hosting the data for a password-protected demo is OK.
+      - key: GRID_DATA
+        value: "0"
       - key: GRID_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY

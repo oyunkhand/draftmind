@@ -1,12 +1,14 @@
 """DraftMind AI — FastAPI application."""
+import base64
 import logging
+import secrets
 import threading
 from contextlib import asynccontextmanager
 from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 
 from . import config, db, scouting, services
@@ -41,6 +43,31 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="DraftMind AI", version="1.0.0", lifespan=lifespan,
               description="AI draft & scouting assistant for League of Legends coaches.")
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+
+_AUTH_EXEMPT = {"/api/health"}  # the host's health check must work without credentials
+
+
+def _authorized(header: Optional[str]) -> bool:
+    if not header or not header.lower().startswith("basic "):
+        return False
+    try:
+        user, _, pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return secrets.compare_digest(user, config.DEMO_USER) & secrets.compare_digest(pw, config.DEMO_PASSWORD)
+
+
+@app.middleware("http")
+async def demo_auth(request: Request, call_next):
+    """Password-protect the whole site when DEMO_PASSWORD is set (judges-only demo of licensed data)."""
+    if config.DEMO_PASSWORD and request.method != "OPTIONS" and request.url.path not in _AUTH_EXEMPT \
+            and not _authorized(request.headers.get("authorization")):
+        return Response(status_code=401, content="Authentication required",
+                        headers={"WWW-Authenticate": 'Basic realm="DraftMind demo", charset="UTF-8"'})
+    response = await call_next(request)
+    if config.DEMO_PASSWORD:
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 
 @app.exception_handler(DraftError)
@@ -297,3 +324,18 @@ def backtest():
             _bt_cache[key] = run_backtest(i.matches, list(i.teams.values()), pri)
             _bt_cache[key]["model"] = {**MODEL_INFO, "pick": PREDICT_PICK, "ban": PREDICT_BAN}
         return _bt_cache[key]
+
+
+# ---------------------------------------------------------------------------- frontend (single origin)
+# Registered last so every /api route above wins. Unknown non-API paths return index.html (SPA routing).
+if (config.FRONTEND_DIST / "index.html").is_file():
+    _dist = config.FRONTEND_DIST.resolve()
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(404, "not found")
+        f = (_dist / path).resolve()
+        if path and f.is_file() and _dist in f.parents:
+            return FileResponse(f)
+        return FileResponse(_dist / "index.html")

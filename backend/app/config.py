@@ -28,6 +28,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()  # auto|anthropic|openai|none
 
+# Optional HTTP Basic auth for the whole site (UI + API). Needed when serving the licensed GRID data:
+# only judges and organizers may see it, so the credentials go in the Devpost testing instructions.
+DEMO_USER = os.getenv("DEMO_USER", "judge")
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "")
+# Built frontend (vite dist) served by the API itself, so one origin and one login cover everything
+FRONTEND_DIST = Path(os.getenv("FRONTEND_DIST", str(ROOT / "frontend" / "dist")))
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 RECENCY_HALF_LIFE_DAYS = float(os.getenv("RECENCY_HALF_LIFE_DAYS", "45"))
 
