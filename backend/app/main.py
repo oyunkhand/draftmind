@@ -14,6 +14,7 @@ from .adapters import load_dataset
 from .champions import all_champions, ddragon_version, name_of
 from .engine import stats as stats_mod
 from .engine.backtest import run_backtest
+from .engine.scoring import MODEL_INFO, PREDICT_BAN, PREDICT_PICK
 from .engine.draft import DRAFT_ORDER, DraftError
 from .engine.explain import explain
 from .engine.scoring import DEFAULT_WEIGHTS, FACTOR_LABELS
@@ -294,4 +295,5 @@ def backtest():
             pri = {"matchups": [{"a": a, "b": b, "wr_a": v[0], "games": v[1]} for (a, b), v in i.prior_matchup.items() if a < b],
                    "synergies": [{"a": k[0], "b": k[1], "wr": v[0], "games": v[1]} for k, v in i.prior_synergy.items()]}
             _bt_cache[key] = run_backtest(i.matches, list(i.teams.values()), pri)
+            _bt_cache[key]["model"] = {**MODEL_INFO, "pick": PREDICT_PICK, "ban": PREDICT_BAN}
         return _bt_cache[key]

@@ -5,7 +5,7 @@ the held-out matches: before each action, predict what the acting team does and 
 real champion ranked. Compared against a meta-only baseline (rank by pro presence).
 """
 import math
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..champions import all_champions
 from .draft import DRAFT_ORDER, DraftError, DraftState, SeriesGame, fearless_locks, fits_open_role
@@ -26,10 +26,13 @@ def _baseline_rank(idx: StatsIndex, state: DraftState, side: str, typ: str, actu
 
 
 def run_backtest(matches: List[dict], teams: List[dict], priors: dict, test_frac: float = 0.25,
-                 fearless: bool = True) -> Dict:
+                 fearless: bool = True, walk_forward: bool = True, train_frac: Optional[float] = None) -> Dict:
+    """Chronological backtest. With walk_forward, each test game is added to the index after it is
+    predicted, so game N is predicted from every game before N (what a coach has on match day)."""
     matches = sorted(matches, key=lambda m: m["date"])
     cut = int(len(matches) * (1 - test_frac))
-    train, test = matches[:cut], matches[cut:]
+    start = int(len(matches) * train_frac) if train_frac is not None else cut
+    train, test = matches[:start], matches[start:cut] if train_frac is not None else matches[cut:]
     idx = StatsIndex(train, teams, priors)
     res = {k: {"n": 0, "top1": 0, "top3": 0, "top5": 0, "base_top1": 0, "base_top5": 0, "ll": 0.0, "conf": 0.0}
            for k in ("pick", "ban")}
@@ -68,7 +71,9 @@ def run_backtest(matches: List[dict], teams: List[dict], priors: dict, test_frac
                 state.apply(a["champion"])
             except DraftError:
                 break
-    out = {"train_games": len(train), "test_games": len(test)}
+        if walk_forward:
+            idx._add_match(m)
+    out = {"train_games": len(train), "test_games": len(test), "walk_forward": walk_forward}
     for k, r in res.items():
         n = r["n"] or 1
         out[k] = {"actions": r["n"], "top1": r["top1"] / n, "top3": r["top3"] / n, "top5": r["top5"] / n,

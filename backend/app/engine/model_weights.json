@@ -1,0 +1,30 @@
+{
+  "temperature": {
+    "pick": 1.149,
+    "ban": 1.199
+  },
+  "pick": {
+    "comfort": 0.251,
+    "team": 1.444,
+    "meta": 0.874,
+    "counter": -0.095,
+    "recent": 0.862,
+    "team_pick": 1.056,
+    "hot": 3.452,
+    "slot": 1.71
+  },
+  "ban": {
+    "target": 0.901,
+    "team": 1.357,
+    "meta": 0.806,
+    "counter": -0.039,
+    "team_ban": 0.157,
+    "targeted": 1.229,
+    "recent_target": 0.857,
+    "hot": 2.856
+  },
+  "source": "fitted",
+  "fitted_on": "games 1006-1257 of 1677 (chronological, walk-forward)",
+  "fitted_at": "2026-11-27",
+  "dataset": "grid-files"
+}

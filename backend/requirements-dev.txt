@@ -1,2 +1,3 @@
 -r requirements.txt
 pytest>=8.0
+numpy>=1.26  # scripts/fit_opponent_model.py only

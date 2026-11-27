@@ -123,5 +123,8 @@ export interface BacktestMetrics {
   actions: number; top1: number; top3: number; top5: number; baseline_top1: number; baseline_top5: number
   log_loss: number; avg_top1_confidence: number
 }
-export interface Backtest { train_games: number; test_games: number; pick: BacktestMetrics; ban: BacktestMetrics }
+export interface Backtest {
+  train_games: number; test_games: number; walk_forward?: boolean; pick: BacktestMetrics; ban: BacktestMetrics
+  model?: { source: string; fitted_on?: string; fitted_at?: string; pick: Record<string, number>; ban: Record<string, number> }
+}
 export interface Explanation { text: string; source: string; template: string; llm_error?: boolean }

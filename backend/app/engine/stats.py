@@ -4,13 +4,16 @@
 be built over the whole database or over a time-split subset (see backtest.py).
 """
 import datetime as dt
+import math
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from .. import config
 from ..champions import ROLES
+
+WINDOW_GAMES = 80
 
 
 @dataclass
@@ -75,6 +78,14 @@ class StatsIndex:
         self.lane: Dict[Tuple[str, str], List[int]] = defaultdict(lambda: [0, 0])  # (a,b) -> [games, a wins]
         self.pair: Dict[Tuple[str, str], List[int]] = defaultdict(lambda: [0, 0])  # sorted (a,b) -> [games, wins]
         self.player_last: Dict[str, Dict[str, str]] = defaultdict(dict)
+        self.team_ban_w: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        self.banned_against_w: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        self.now = self.ref_date
+        # sliding window of the most recent games: "what is hot right now" (patches move fast)
+        self.window: deque = deque()
+        self.window_count: Dict[str, int] = defaultdict(int)
+        # (team's n-th pick, role) counts: which role teams fill with their 1st..5th pick
+        self.slot_role: Dict[int, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         for m in self.matches:
             self._add_match(m)
@@ -95,7 +106,9 @@ class StatsIndex:
         return 0.5 ** (days / self.half_life)
 
     def _add_match(self, m: dict) -> None:
+        """Add one game. Also used for walk-forward evaluation, where games arrive after ref_date."""
         w = self.weight(m["date"])
+        self.now = max(self.now, _parse(m["date"]))
         self.total_w += w
         self.total_games += 1
         blue, red, winner = m["blue_team"], m["red_team"], m["winner"]
@@ -128,6 +141,21 @@ class StatsIndex:
                     k = tuple(sorted((a, b)))
                     self.pair[k][0] += 1
                     self.pair[k][1] += int(team == winner)
+        present = {a["champion"] for a in m["draft"]}
+        self.window.append(present)
+        for c in present:
+            self.window_count[c] += 1
+        if len(self.window) > WINDOW_GAMES:
+            for c in self.window.popleft():
+                self.window_count[c] -= 1
+        role_of = {(p["team"], p["champion"]): p["role"] for p in m["participants"]}
+        nth: Dict[str, int] = defaultdict(int)
+        for a in sorted(m["draft"], key=lambda x: x["seq"]):
+            if a["type"] == "pick":
+                r = role_of.get((a["team"], a["champion"]))
+                if r:
+                    self.slot_role[nth[a["team"]]][r] += 1
+                nth[a["team"]] += 1
         first_seen = set()
         for a in m["draft"]:
             team = a["team"]
@@ -138,8 +166,10 @@ class StatsIndex:
                 self.champ_ban_w[a["champion"]] += w
                 self.champ_ban_n[a["champion"]] += 1
                 self.team_ban[team][a["champion"]] += 1
+                self.team_ban_w[team][a["champion"]] += w
                 opp = red if team == blue else blue
                 self.banned_against[opp][a["champion"]] += 1
+                self.banned_against_w[opp][a["champion"]] += w
             elif team not in first_seen:
                 first_seen.add(team)
                 self.team_phase[team]["first"][a["champion"]] += w
@@ -209,7 +239,45 @@ class StatsIndex:
         out.sort(key=lambda x: (-x["weighted"], -x["games"]))
         return out[:limit]
 
+    def hot(self, c: str) -> float:
+        """0..1: presence (pick or ban) in the last WINDOW_GAMES games, relative to the hottest champion."""
+        if not self.window_count:
+            return 0.0
+        return self.window_count.get(c, 0) / (max(self.window_count.values()) or 1)
+
+    def slot_role_rate(self, nth_pick: int, role: str, open_roles) -> float:
+        """Share of `role` among the still-open roles for a team's n-th pick (0-based)."""
+        d = self.slot_role.get(nth_pick, {})
+        tot = sum(d.get(r, 0) for r in open_roles)
+        return d.get(role, 0) / tot if tot else 0.0
+
+    def recency(self, pid: Optional[str], c: str, scale_days: float = 30.0) -> Tuple[float, Optional[int]]:
+        """1.0 if the player picked c in their latest games, decaying with days since they last played it."""
+        last = self.player_last.get(pid, {}).get(c) if pid else None
+        if not last:
+            return 0.0, None
+        days = max(0.0, (self.now - _parse(last)).total_seconds() / 86400)
+        return math.exp(-days / scale_days), int(days)
+
     # ------------------------------------------------------------------ teams
+    @staticmethod
+    def _norm(d: Dict[str, float], c: str) -> float:
+        if not d or c not in d:
+            return 0.0
+        return d[c] / (max(d.values()) or 1.0)
+
+    def team_pick_rate(self, team: str, c: str) -> float:
+        """0..1: how much this team picks c across all phases, recency weighted, relative to its top pick."""
+        d = self.team_pick.get(team, {})
+        return self._norm({k: a.w for k, a in d.items()}, c) if d else 0.0
+
+    def team_ban_rate(self, team: str, c: str) -> float:
+        return self._norm(self.team_ban_w.get(team, {}), c)
+
+    def targeted_rate(self, team: str, c: str) -> float:
+        """0..1: how often opponents ban c against this team."""
+        return self._norm(self.banned_against_w.get(team, {}), c)
+
     def team_phase_rate(self, team: str, phase: str, c: str) -> Tuple[float, int, int]:
         """(normalized 0..1 priority, raw count, team games) for a champion in a draft phase."""
         d = self.team_phase.get(team, {}).get(phase, {})

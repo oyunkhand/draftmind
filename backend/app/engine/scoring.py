@@ -7,10 +7,12 @@ underlying stats. Totals are a plain weighted sum, so the "why" is exactly the m
 * predict_opponent  - opponent's likely next pick/ban: weighted score -> softmax probabilities.
 * recommend         - our best next pick/ban with a coach-tunable weight vector.
 """
+import json
 import math
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from ..champions import all_champions, name_of
+from ..champions import ROLES, all_champions, name_of
 from .draft import DraftState, Step, assign_roles, fits_open_role, other
 from .stats import StatsIndex
 
@@ -25,14 +27,28 @@ FACTOR_LABELS = {
     "meta": "Meta strength", "counter": "Counter value", "synergy": "Synergy", "comfort": "Player comfort",
     "deny": "Denies opponent", "coach": "Coach history", "threat": "Opponent comfort",
     "predicted": "Likely enemy pick", "protect": "Keeps our comfort open", "team": "Team draft pattern",
-    "target": "Targets our players",
+    "target": "Targets our players", "recent": "Recently played", "team_pick": "Team pick habit",
+    "team_ban": "Team ban habit", "targeted": "Banned against us", "recent_target": "Our recent pick", "hot": "Hot right now",
+    "slot": "Role for this pick",
 }
 
-# Opponent model weights (grid-searched on a chronological backtest, see backtest.py)
-PREDICT_PICK = {"comfort": 1.6, "team": 2.0, "meta": 2.4, "counter": 0.5}
-PREDICT_BAN = {"target": 1.7, "team": 0.6, "meta": 2.0, "counter": 0.4}
-# Softmax temperatures calibrated by minimizing held-out log-loss (top-1 confidence ~ top-1 accuracy)
+# Opponent model weights. Hand-tuned defaults; scripts/fit_opponent_model.py replaces them with
+# conditional-logit weights fitted on real games (model_weights.json, loaded below).
+PREDICT_PICK = {"comfort": 1.6, "team": 2.0, "meta": 2.4, "counter": 0.5, "recent": 0.0, "team_pick": 0.0,
+                "hot": 0.0, "slot": 0.0}
+PREDICT_BAN = {"target": 1.7, "team": 0.6, "meta": 2.0, "counter": 0.4, "team_ban": 0.0, "targeted": 0.0,
+               "recent_target": 0.0, "hot": 0.0}
+# Softmax temperatures (fitted weights already include the scale, so they ship with 1.0)
 TEMPERATURE = {"pick": 0.9, "ban": 0.7}
+MODEL_INFO: Dict[str, object] = {"source": "defaults"}
+
+_WEIGHTS_FILE = Path(__file__).with_name("model_weights.json")
+if _WEIGHTS_FILE.is_file():
+    _fitted = json.loads(_WEIGHTS_FILE.read_text())
+    PREDICT_PICK.update(_fitted["pick"])
+    PREDICT_BAN.update(_fitted["ban"])
+    TEMPERATURE.update(_fitted.get("temperature", {}))
+    MODEL_INFO = {k: v for k, v in _fitted.items() if k not in ("pick", "ban", "temperature")}
 
 
 def pct(x: float) -> str:
@@ -109,6 +125,8 @@ def predict_opponent(idx: StatsIndex, state: DraftState, opp_side: str, step: Op
     our_team = state.team_of(our_side)
     opp_picks, our_picks = state.picks(opp_side), state.picks(our_side)
     our_roles, opp_roles = assign_roles(our_picks), assign_roles(opp_picks)
+    open_roles = [r for r in ROLES if r not in opp_roles]
+    slot_rates = {r: idx.slot_role_rate(len(opp_picks), r, open_roles) for r in open_roles}
     scored = []
     for c in candidates():
         if c in exclude or not state.is_available(c, opp_side, step.type):
@@ -136,6 +154,17 @@ def predict_opponent(idx: StatsIndex, state: DraftState, opp_side: str, step: Op
                 factor("meta", meta, PREDICT_PICK["meta"], _meta_evidence(idx, c)),
                 factor("counter", cv, PREDICT_PICK["counter"], _counter_evidence(cdet) if cdet else "No revealed matchup data"),
             ]
+            rec, days = idx.recency(p["id"] if p else None, c)
+            tp = idx.team_pick_rate(team, c)
+            fs += [
+                factor("recent", rec, PREDICT_PICK["recent"],
+                       f"{pname} last played it {days} days ago" if days is not None else f"{pname} hasn't played it",
+                       days=days),
+                factor("team_pick", tp, PREDICT_PICK["team_pick"], f"Team pick share {pct(tp)} of their most-picked"),
+                factor("hot", idx.hot(c), PREDICT_PICK["hot"], f"Picked or banned in {pct(idx.hot(c))} of the top rate lately"),
+                factor("slot", slot_rates.get(role, 0.0), PREDICT_PICK["slot"],
+                       f"Pick {len(opp_picks) + 1} goes to {role} {pct(slot_rates.get(role, 0.0))} of the time"),
+            ]
         else:
             role = fits_open_role(our_picks, c)
             if not role and not fits_open_role(opp_picks, c):
@@ -156,6 +185,15 @@ def predict_opponent(idx: StatsIndex, state: DraftState, opp_side: str, step: Op
                 factor("meta", meta, PREDICT_BAN["meta"], _meta_evidence(idx, c)),
                 factor("counter", cv, PREDICT_BAN["counter"],
                        _counter_evidence(cdet, against_us=True) if cdet else "No threat data vs their picks"),
+            ]
+            tb, tg = idx.team_ban_rate(team, c), idx.targeted_rate(our_team, c)
+            rec, days = idx.recency(p["id"] if p else None, c)
+            fs += [
+                factor("team_ban", tb, PREDICT_BAN["team_ban"], f"Their ban share {pct(tb)} of their most-banned"),
+                factor("targeted", tg, PREDICT_BAN["targeted"], f"Opponents ban it vs us at {pct(tg)} of the top rate"),
+                factor("hot", idx.hot(c), PREDICT_BAN["hot"], f"Picked or banned in {pct(idx.hot(c))} of the top rate lately"),
+                factor("recent_target", rec, PREDICT_BAN["recent_target"],
+                       f"{pname} played it {days} days ago" if days is not None else "Not a recent pick of ours", days=days),
             ]
         score = sum(f["contribution"] for f in fs)
         scored.append((c, score, fs, role))
