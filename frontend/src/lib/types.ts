@@ -65,6 +65,7 @@ export interface DraftAnalysis {
   }
   recommendations: { step: StepInfo | null; type?: ActionType; weights?: Record<string, number>; recommendations: Recommendation[] }
   prediction: { step: StepInfo | null; team?: string; predictions: Prediction[] }
+  win_probability?: WinProbability
   rejected_this_step: string[]
   decisions: Decision[]
 }
@@ -148,4 +149,11 @@ export interface FirstSelection {
   choices?: { choice: string; kind: 'side' | 'turn'; value: string; opponent_reply: string; wr: number; outcome: FsOutcome }[]
   league?: { events: string[]; games: number; blue_wr: number; first_wr: number; combos: ({ side: Side; turn: string } & FsRate)[] }
   teams?: Record<string, { overall: FsRate; sides: Record<Side, FsRate>; turns_fs_era: Record<'first' | 'second', FsRate> }>
+}
+export interface WinProbability {
+  p: number
+  factors: { key: string; label: string; value: number; logit: number }[]
+  curve: { index: number; p: number; label: string; champion: string | null }[]
+  what_if: Record<string, number>
+  model: { source?: string; fitted_on?: string; held_out?: { games: number; final_draft: { model: { accuracy: number; log_loss: number }; elo_and_side_only: { accuracy: number; log_loss: number } } } }
 }

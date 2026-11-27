@@ -26,5 +26,50 @@
   "source": "fitted",
   "fitted_on": "games 1006-1257 of 1677 (chronological, walk-forward)",
   "fitted_at": "2026-11-27",
-  "dataset": "grid-files"
+  "dataset": "grid-files",
+  "winprob": {
+    "weights": {
+      "intercept": -0.0,
+      "elo": 0.8543,
+      "blue": 0.0302,
+      "meta": 0.0355,
+      "comfort": -0.1507,
+      "lane": 0.0199,
+      "synergy": 0.0387
+    },
+    "source": "fitted",
+    "fitted_on": "games 1006-1257 of 1677 (chronological, walk-forward)",
+    "fitted_at": "2026-11-27",
+    "held_out": {
+      "games": 420,
+      "final_draft": {
+        "model": {
+          "rows": 840,
+          "log_loss": 0.6479,
+          "accuracy": 0.6357,
+          "brier": 0.2277
+        },
+        "elo_and_side_only": {
+          "rows": 840,
+          "log_loss": 0.6476,
+          "accuracy": 0.6357,
+          "brier": 0.2276
+        }
+      },
+      "before_draft": {
+        "model": {
+          "rows": 840,
+          "log_loss": 0.6476,
+          "accuracy": 0.6357,
+          "brier": 0.2276
+        },
+        "elo_and_side_only": {
+          "rows": 840,
+          "log_loss": 0.6476,
+          "accuracy": 0.6357,
+          "brier": 0.2276
+        }
+      }
+    }
+  }
 }

@@ -115,7 +115,9 @@ def main():
         print(f"  {typ}: top-1 on fitting set {acc:.3f}, temperature {out['temperature'][typ]}", file=sys.stderr)
     out.update({"source": "fitted", "fitted_on": f"games {a}-{b} of {len(matches)} (chronological, walk-forward)",
                 "fitted_at": dt.date.today().isoformat(), "dataset": info.get("name")})
-    OUT.write_text(json.dumps(out, indent=2) + "\n")
+    existing = json.loads(OUT.read_text()) if OUT.is_file() else {}
+    keep = {k: v for k, v in existing.items() if k == "winprob"}  # written by fit_winprob.py
+    OUT.write_text(json.dumps({**out, **keep}, indent=2) + "\n")
     # reload the module-level weights and evaluate on the untouched last 25%
     scoring.PREDICT_PICK.update(out["pick"]); scoring.PREDICT_BAN.update(out["ban"])
     scoring.TEMPERATURE.update(out["temperature"])

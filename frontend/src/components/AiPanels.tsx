@@ -43,7 +43,14 @@ export function RecCard({ rec, a, actionable, busy, onDecide, onModify, modifyin
             <span className="truncate font-semibold text-slate-50">{rec.name}</span>
             <RoleChip role={rec.role} />
             {isBan && <span className="chip bg-rose-500/10 text-rose-300">ban</span>}
-            <span className="ml-auto font-display text-lg font-bold text-accent">{rec.score}</span>
+            {a.win_probability?.what_if?.[rec.champion] != null && (
+              <span className={`ml-auto chip tabular-nums ${Math.abs(a.win_probability.what_if[rec.champion]) < 0.005 ? 'bg-white/5 text-slate-500' : a.win_probability.what_if[rec.champion] > 0 ? 'bg-emerald-400/10 text-emerald-300' : 'bg-rose-400/10 text-rose-300'}`}
+                title="Change in our win probability if we pick this now (changes under 0.5% are within noise)">
+                {Math.abs(a.win_probability.what_if[rec.champion]) < 0.005 ? '≈0% win'
+                  : `${a.win_probability.what_if[rec.champion] > 0 ? '+' : '−'}${Math.abs(100 * a.win_probability.what_if[rec.champion]).toFixed(1)}% win`}
+              </span>
+            )}
+            <span className={`${a.win_probability?.what_if?.[rec.champion] != null ? '' : 'ml-auto '}font-display text-lg font-bold text-accent`}>{rec.score}</span>
           </div>
           <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.06]">
             <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-indigo-400" style={{ width: `${rec.score}%` }} />

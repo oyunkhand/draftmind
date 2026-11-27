@@ -5,7 +5,7 @@ import { ChampIcon, RoleChip, Segmented, Spinner, TeamBadge, pct } from '../comp
 import WeightsDrawer from '../components/WeightsDrawer'
 import { api } from '../lib/api'
 import { useApp } from '../lib/store'
-import type { DraftAnalysis, Recommendation, Role, Side, TimelineSlot } from '../lib/types'
+import type { WinProbability, DraftAnalysis, Recommendation, Role, Side, TimelineSlot } from '../lib/types'
 import { ROLES } from '../lib/types'
 
 const SIDE_COLOR: Record<Side, string> = { blue: '#3b82f6', red: '#ef4444' }
@@ -202,6 +202,7 @@ export default function DraftBoard() {
       </div>
 
       <Timeline slots={a.state.timeline} />
+      {a.win_probability && <WinProbBar wp={a.win_probability} tag={us?.tag ?? 'Us'} />}
 
       <div className="grid gap-3 xl:grid-cols-[210px_minmax(0,1fr)_210px_400px] lg:grid-cols-[200px_minmax(0,1fr)_200px]">
         <TeamColumn a={a} side="blue" />
@@ -320,6 +321,39 @@ export default function DraftBoard() {
       </div>
 
       <WeightsDrawer open={weightsOpen} onClose={() => setWeightsOpen(false)} onSaved={load} />
+    </div>
+  )
+}
+
+function WinProbBar({ wp, tag }: { wp: WinProbability; tag: string }) {
+  const W = 260, H = 36
+  const pts = wp.curve.map((c, i) => {
+    const x = wp.curve.length > 1 ? (i / 20) * W : 0
+    const y = H - c.p * H
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const ho = wp.model.held_out?.final_draft
+  return (
+    <div className="panel flex flex-wrap items-center gap-4 px-4 py-2.5">
+      <div>
+        <div className="label">Win probability · {tag}</div>
+        <div className={`font-display text-2xl font-bold tabular-nums ${wp.p >= 0.5 ? 'text-emerald-300' : 'text-rose-300'}`}>{Math.round(100 * wp.p)}%</div>
+      </div>
+      <svg width={W} height={H} className="shrink-0" aria-label="Win probability over the draft">
+        <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="currentColor" className="text-white/10" strokeDasharray="3 3" />
+        <polyline points={pts} fill="none" stroke="currentColor" strokeWidth={2} className="text-accent" />
+      </svg>
+      <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+        {wp.factors.slice(0, 4).map(f => (
+          <span key={f.key}>{f.label} <b className={f.logit >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{f.logit >= 0 ? '+' : '−'}{Math.abs(f.logit).toFixed(2)}</b></span>
+        ))}
+      </div>
+      {ho && (
+        <div className="max-w-xs text-[11px] leading-snug text-slate-500">
+          Held-out {wp.model.held_out!.games} games: {Math.round(100 * ho.model.accuracy)}% correct after the draft
+          (Elo + side alone: {Math.round(100 * ho.elo_and_side_only.accuracy)}%). Team strength drives most of it; draft effects are small.
+        </div>
+      )}
     </div>
   )
 }

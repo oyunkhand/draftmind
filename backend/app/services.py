@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from . import db
 from .champions import name_of, resolve
-from .engine import scoring
+from .engine import scoring, winprob
 from .engine.draft import (DRAFT_ORDER, FEARLESS_MODES, DraftError, DraftState, SeriesGame, fearless_locks, other)
 from .engine.stats import StatsIndex
 
@@ -167,6 +167,8 @@ def analysis(idx: StatsIndex, gid: str) -> dict:
     excluded = _rejected_now(gid, state.index) if state.current and state.current.side == our_side else set()
     rec = scoring.recommend(idx, state, our_side, get_weights(), affinity, exclude=excluded)
     pred = scoring.predict_opponent(idx, state, opp_side)
+    wp = winprob.predict(idx, state, our_side)
+    our_turn = state.current is not None and state.current.side == our_side
     series = db.one("SELECT * FROM coach_series WHERE id=?", (g["series_id"],))
     return {
         "id": gid, "series_id": g["series_id"], "game_number": g["game_number"], "best_of": series["best_of"] if series else 1,
@@ -179,6 +181,10 @@ def analysis(idx: StatsIndex, gid: str) -> dict:
                                                 "ours": state.current.side == our_side},
                   "timeline": state.timeline(), "roles": {s: state.roles(s) for s in ("blue", "red")}},
         "recommendations": rec, "prediction": pred, "rejected_this_step": sorted(excluded),
+        "win_probability": {"p": round(wp["p"], 4), "factors": wp["factors"], "curve": winprob.curve(idx, state, our_side),
+                            "what_if": winprob.what_if(idx, state, our_side,
+                                                       [r["champion"] for r in rec["recommendations"][:6]]) if our_turn else {},
+                            "model": winprob.INFO},
         "decisions": db.rows("SELECT id, step, action_type, suggested_champion, decision, final_champion, note, created_at "
                              "FROM decisions WHERE session_id=? ORDER BY id", (gid,)),
     }

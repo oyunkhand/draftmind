@@ -14,6 +14,7 @@ from .. import config
 from ..champions import ROLES
 
 WINDOW_GAMES = 80
+ELO_START, ELO_K = 1500.0, 24.0
 
 
 @dataclass
@@ -86,6 +87,8 @@ class StatsIndex:
         self.window_count: Dict[str, int] = defaultdict(int)
         # (team's n-th pick, role) counts: which role teams fill with their 1st..5th pick
         self.slot_role: Dict[int, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # Elo team ratings, updated game by game in date order (strength going into the next game)
+        self.elo: Dict[str, float] = defaultdict(lambda: ELO_START)
 
         for m in self.matches:
             self._add_match(m)
@@ -112,6 +115,10 @@ class StatsIndex:
         self.total_w += w
         self.total_games += 1
         blue, red, winner = m["blue_team"], m["red_team"], m["winner"]
+        exp_blue = self.elo_expect(blue, red)
+        delta = ELO_K * ((1.0 if winner == blue else 0.0) - exp_blue)
+        self.elo[blue] += delta
+        self.elo[red] -= delta
         for side, team in (("blue", blue), ("red", red)):
             self.team_games[team].add(team == winner, w)
             self.team_side[team][side].add(team == winner, w)
@@ -238,6 +245,10 @@ class StatsIndex:
                         "comfort": round(self.comfort(pid, c)["score"], 3), "last_played": self.player_last[pid][c]})
         out.sort(key=lambda x: (-x["weighted"], -x["games"]))
         return out[:limit]
+
+    def elo_expect(self, a: str, b: str) -> float:
+        """Elo probability that team a beats team b."""
+        return 1.0 / (1.0 + 10 ** ((self.elo[b] - self.elo[a]) / 400.0))
 
     def hot(self, c: str) -> float:
         """0..1: presence (pick or ban) in the last WINDOW_GAMES games, relative to the hottest champion."""
