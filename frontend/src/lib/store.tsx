@@ -43,8 +43,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setChampions(c.champions)
         setDdVersion(c.version)
         const ids = t.map(x => x.id)
-        setOur(prev => (ids.includes(prev) ? prev : ids.includes('NMB') ? 'NMB' : ids[0]))
-        setOpp(prev => (ids.includes(prev) ? prev : ids.includes('IWF') ? 'IWF' : ids[1]))
+        // Real GRID data: default to Cloud9 vs Team Liquid. Sample data: NMB vs IWF.
+        const byName = (prefix: string) => t.find(x => x.name.startsWith(prefix))?.id
+        const ourDefault = byName('Cloud9') ?? (ids.includes('NMB') ? 'NMB' : ids[0])
+        const oppDefault = byName('Team Liquid') ?? (ids.includes('IWF') ? 'IWF' : ids.find(i => i !== ourDefault))
+        setOur(prev => (ids.includes(prev) ? prev : ourDefault))
+        setOpp(prev => (ids.includes(prev) ? prev : oppDefault ?? ids[1]))
       })
       .catch(e => setError(String(e.message ?? e)))
   }, [])

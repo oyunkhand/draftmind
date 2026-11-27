@@ -39,11 +39,14 @@ def run_backtest(matches: List[dict], teams: List[dict], priors: dict, test_frac
             continue
         prev = [g for g in matches if g.get("series_id") and g.get("series_id") == m.get("series_id")
                 and (g.get("game_number") or 0) < (m.get("game_number") or 0)]
+        # DRAFT_ORDER starts with "blue". Under First Selection the red side can draft first, so
+        # replay from the drafting team's perspective: whoever acts first takes the "blue" slots.
+        first, second = (m["red_team"], m["blue_team"]) if draft[0]["side"] == "red" else (m["blue_team"], m["red_team"])
         locks = fearless_locks([SeriesGame(g["blue_team"], g["red_team"],
                                            [a["champion"] for a in g["draft"] if a["type"] == "pick" and a["side"] == "blue"],
                                            [a["champion"] for a in g["draft"] if a["type"] == "pick" and a["side"] == "red"])
-                                for g in prev], m["blue_team"], m["red_team"], "hard" if fearless else "off")
-        state = DraftState(m["blue_team"], m["red_team"], fearless_mode="hard" if fearless else "off", locked=locks)
+                                for g in prev], first, second, "hard" if fearless else "off")
+        state = DraftState(first, second, fearless_mode="hard" if fearless else "off", locked=locks)
         for step, a in zip(DRAFT_ORDER, draft):
             preds = predict_opponent(idx, state, step.side, step=step, top=400)["predictions"]
             names = [p["champion"] for p in preds[:5]]

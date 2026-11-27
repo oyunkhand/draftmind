@@ -23,3 +23,4 @@ stl-hackathon-2026-grid-starter/
 *.parquet
 *.sqlite
 *.duckdb
+backend/var/
