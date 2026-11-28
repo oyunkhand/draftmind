@@ -10,9 +10,9 @@ Built for the **Cloud9 × JetBrains "Sky's The Limit" Hackathon, Category 2: LoL
 
 | Dashboard | Scouting Report |
 |---|---|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Scouting](docs/screenshots/scouting.png) |
+| ![Dashboard](docs/screenshots/dashboard.jpg) | ![Scouting](docs/screenshots/scouting.jpg) |
 | **Series History** | **AI Model** |
-| ![Series](docs/screenshots/series-history.png) | ![Model](docs/screenshots/model.png) |
+| ![Series](docs/screenshots/series-history.jpg) | ![Model](docs/screenshots/model.jpg) |
 
 ---
 
