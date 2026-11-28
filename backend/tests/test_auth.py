@@ -36,3 +36,9 @@ def test_health_stays_open_for_the_host(client, protected):
 
 def test_malformed_header_is_rejected(client, protected):
     assert client.get("/api/teams", headers={"Authorization": "Basic !!!"}).status_code == 401
+
+
+def test_non_ascii_credentials_get_401_not_500(client, protected):
+    # a password typed on a Cyrillic keyboard layout used to crash compare_digest
+    assert client.get("/api/teams", headers=_basic("judge", "нууц үг")).status_code == 401
+    assert client.get("/api/teams", headers=_basic("жүдж", "s3cret")).status_code == 401

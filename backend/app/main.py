@@ -52,10 +52,11 @@ def _authorized(header: Optional[str]) -> bool:
     if not header or not header.lower().startswith("basic "):
         return False
     try:
-        user, _, pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
-    except (ValueError, UnicodeDecodeError):
+        user, _, pw = base64.b64decode(header[6:]).partition(b":")
+    except ValueError:
         return False
-    return secrets.compare_digest(user, config.DEMO_USER) & secrets.compare_digest(pw, config.DEMO_PASSWORD)
+    # compare bytes: compare_digest raises TypeError on non-ASCII str (e.g. a password typed on a Cyrillic layout)
+    return secrets.compare_digest(user, config.DEMO_USER.encode()) & secrets.compare_digest(pw, config.DEMO_PASSWORD.encode())
 
 
 @app.middleware("http")
