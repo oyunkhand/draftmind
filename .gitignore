@@ -24,3 +24,4 @@ stl-hackathon-2026-grid-starter/
 *.sqlite
 *.duckdb
 backend/var/
+http/http-client.private.env.json

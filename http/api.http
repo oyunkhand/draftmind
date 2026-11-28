@@ -1,9 +1,13 @@
 # DraftMind API smoke tests — JetBrains HTTP Client
-# Run in PyCharm/IntelliJ (pick env "local" or "prod"), or from the CLI:
-#   docker run --rm -v "$PWD/http":/workdir jetbrains/intellij-http-client --no-progress -v http-client.env.json -e prod -t 60000 api.http
+# Run in PyCharm/IntelliJ (pick env "local" or "prod"), or from the CLI.
+# The prod demo is password-protected: put the password in http/http-client.private.env.json (git-ignored):
+#   {"prod": {"password": "<DEMO_PASSWORD>"}}
+# Then add  -p http-client.private.env.json  to the CLI command below.
+#   docker run --rm -v "$PWD/http":/workdir jetbrains/intellij-http-client --no-progress -v http-client.env.json -p http-client.private.env.json -e prod -t 60000 api.http
 
 ### Health
 GET {{baseUrl}}/api/health
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("health is ok", () => {
@@ -15,6 +19,7 @@ GET {{baseUrl}}/api/health
 
 ### Teams
 GET {{baseUrl}}/api/teams
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("teams list includes both teams", () => {
@@ -27,6 +32,7 @@ GET {{baseUrl}}/api/teams
 
 ### Dashboard
 GET {{baseUrl}}/api/dashboard?our={{ourTeam}}&opp={{opponent}}
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("dashboard has insights and ban plan", () => {
@@ -38,6 +44,7 @@ GET {{baseUrl}}/api/dashboard?our={{ourTeam}}&opp={{opponent}}
 
 ### Scouting report
 GET {{baseUrl}}/api/teams/{{opponent}}/scouting?vs={{ourTeam}}
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("scouting report returns", () => {
@@ -48,6 +55,7 @@ GET {{baseUrl}}/api/teams/{{opponent}}/scouting?vs={{ourTeam}}
 
 ### Unknown team -> 404
 GET {{baseUrl}}/api/teams/NOPE
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("unknown team is 404", () => {
@@ -57,6 +65,7 @@ GET {{baseUrl}}/api/teams/NOPE
 
 ### Create a best-of-3 fearless series
 POST {{baseUrl}}/api/series
+Authorization: Basic {{user}} {{password}}
 Content-Type: application/json
 
 {"our_team": "{{ourTeam}}", "opponent": "{{opponent}}", "best_of": 3, "fearless_mode": "hard", "title": "http-client smoke test"}
@@ -71,6 +80,7 @@ Content-Type: application/json
 
 ### Start game 1 on blue side
 POST {{baseUrl}}/api/series/{{seriesId}}/games
+Authorization: Basic {{user}} {{password}}
 Content-Type: application/json
 
 {"our_side": "blue"}
@@ -85,6 +95,7 @@ Content-Type: application/json
 
 ### Draft analysis: recommendations at the first step
 GET {{baseUrl}}/api/drafts/{{gameId}}
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("recommendations are ranked", () => {
@@ -100,6 +111,7 @@ GET {{baseUrl}}/api/drafts/{{gameId}}
 
 ### Apply the top recommendation as the first action
 POST {{baseUrl}}/api/drafts/{{gameId}}/actions
+Authorization: Basic {{user}} {{password}}
 Content-Type: application/json
 
 {"champion": "{{topPick}}"}
@@ -114,6 +126,7 @@ Content-Type: application/json
 
 ### Undo restores the champion
 POST {{baseUrl}}/api/drafts/{{gameId}}/undo
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("undo works", () => {
@@ -125,6 +138,7 @@ POST {{baseUrl}}/api/drafts/{{gameId}}/undo
 
 ### Clean up: delete the test series
 DELETE {{baseUrl}}/api/series/{{seriesId}}
+Authorization: Basic {{user}} {{password}}
 
 > {%
     client.test("series deleted", () => {
